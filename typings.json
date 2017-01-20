@@ -1,0 +1,11 @@
+{
+  "globalDependencies": {
+    "node": "registry:env/node#6.0.0+20170119204930"
+  },
+  "globalDevDependencies": {
+    "jest": "registry:dt/jest#16.0.0+20170112172802"
+  },
+  "dependencies": {
+    "debug": "registry:npm/debug#2.0.0+20160723033700"
+  }
+}

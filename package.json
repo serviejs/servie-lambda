@@ -1,0 +1,51 @@
+{
+  "name": "servie-lambda",
+  "version": "0.0.0",
+  "description": "Servie transport for AWS lambda proxy",
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "lint": "tslint \"src/**/*.ts\"",
+    "build": "rimraf dist && tsc",
+    "specs": "jest --coverage",
+    "test": "npm run -s lint && npm run -s build && npm run -s specs",
+    "prepublish": "typings install && npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/blakeembrey/node-servie-lambda.git"
+  },
+  "keywords": [
+    "servie",
+    "aws",
+    "lambda",
+    "request",
+    "async",
+    "http"
+  ],
+  "author": {
+    "name": "Blake Embrey",
+    "email": "hello@blakeembrey.com",
+    "url": "http://blakeembrey.me"
+  },
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/blakeembrey/node-servie-lambda/issues"
+  },
+  "homepage": "https://github.com/blakeembrey/node-servie-lambda",
+  "devDependencies": {
+    "jest": "^18.1.0",
+    "rimraf": "^2.5.4",
+    "servie": "0.0.6",
+    "tslint": "^4.3.1",
+    "tslint-config-standard": "^2.0.0",
+    "typescript": "^2.1.5",
+    "typings": "^2.1.0"
+  },
+  "peerDependencies": {
+    "servie": "^0.0.3"
+  }
+}
