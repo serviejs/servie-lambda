@@ -1,5 +1,7 @@
 # Servie Lambda
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/blakeembrey/node-servie-lambda.svg?token=0921c61dc6234c5fc7399e10e4b931fe4ff7e7cce2f80d7640f70682333fe8b8)](https://greenkeeper.io/)
+
 [![NPM version][npm-image]][npm-url]
 [![NPM downloads][downloads-image]][downloads-url]
 [![Build status][travis-image]][travis-url]
