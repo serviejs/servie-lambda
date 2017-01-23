@@ -1,7 +1,8 @@
 import { format } from 'url'
 import { Request, Response } from 'servie'
+import { STATUS_CODES } from 'http'
 
-export type Middleware = (req: Request, res: Response, next: () => Promise<void>) => Promise<void>
+export type App = (req: Request, next: () => Promise<Response>) => Promise<Response>
 
 /**
  * AWS Lambda event object.
@@ -57,53 +58,61 @@ export interface Result {
  */
 export interface Options {
   isBinary?: (res: Response) => boolean
+  logError?: (err: Error) => void
+  production?: boolean
 }
 
 /**
  * Create a server for handling AWS Lambda requests.
  */
-export function createServer (fn: Middleware, options: Options = {}) {
+export function createHandler (fn: App, options: Options = {}) {
   return function (event: Event, _context: Context, cb: (err: Error | null, res?: Result) => void): void {
     const { httpMethod: method, headers, isBase64Encoded } = event
     const url = format({ pathname: event.path, query: event.queryStringParameters })
     const body = event.body ? new Buffer(event.body, isBase64Encoded ? 'base64' : 'utf8') : undefined
+    const logError = options.logError || ((err: Error) => console.error(err))
+    const production = options.production == null ? (process.env['NODE_ENV'] === 'production') : options.production
+    let returned = false
 
-    const connection = { encrypted: true, remoteAddress: event.requestContext.identity.sourceIp }
-
-    const request = new Request({ method, url, connection, headers, body })
-    const response = new Response(request, {})
-
-    // Handle request and response errors.
-    request.events.on('error', done)
-    response.events.on('error', done)
-
-    // Marked request as finished.
-    request.started = true
-    request.finished = true
-    request.bytesTransferred = body ? body.length : 0
-
-    function done (err: Error | null, res?: Result) {
-      if (err && (request.aborted || response.started)) {
-        console.error(err)
-        return
-      }
-
-      response.started = true
-      response.finished = true
-
-      return cb(err, res)
+    const connection = {
+      encrypted: true,
+      remoteAddress: event.requestContext.identity.sourceIp
     }
 
-    fn(request, response, finalhandler(request, response))
-      .then((): void | Promise<void> => {
-        if (request.aborted || response.started) {
+    const req = new Request({ method, url, connection, headers, body })
+
+    // Handle request and response errors.
+    req.events.on('error', done)
+
+    // Marked request as finished.
+    req.started = true
+    req.finished = true
+    req.bytesTransferred = body ? body.length : 0
+
+    function done (err: Error | null, res?: Result) {
+      returned = true
+
+      if (err) {
+        logError(err)
+
+        return cb(null, mapError(err, production))
+      }
+
+      return cb(null, res)
+    }
+
+    fn(req, finalhandler(req))
+      .then((response): void | Promise<void> => {
+        if (returned) {
           return
         }
+
+        response.started = true
 
         return response.buffer().then((body) => {
           const isBase64Encoded = options.isBinary ? options.isBinary(response) : false
 
-          // Set bytes transferred.
+          response.finished = true
           response.bytesTransferred = body ? body.length : 0
 
           return done(null, {
@@ -119,14 +128,31 @@ export function createServer (fn: Middleware, options: Options = {}) {
 }
 
 /**
+ * Map a request error to lambda.
+ */
+function mapError (err: any, production: boolean): Result {
+  const status = err.status || 500
+  const body = (production ? STATUS_CODES[status] : (err.stack || String(err))) || ''
+
+  return {
+    statusCode: status,
+    headers: {
+      'content-type': 'text/plain',
+      'content-length': String(Buffer.byteLength(body))
+    },
+    body: body,
+    isBase64Encoded: false
+  }
+}
+
+/**
  * Final throwback server handler.
  */
-function finalhandler (req: Request, res: Response) {
+function finalhandler (req: Request) {
   return function () {
-    res.status = 404
-    res.type = 'text/plain'
-    res.body = `Cannot ${req.method} ${req.url}`
-
-    return Promise.resolve()
+    return Promise.resolve(new Response(req, {
+      status: 404,
+      body: `Cannot ${req.method} ${req.url}`
+    }))
   }
 }

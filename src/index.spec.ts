@@ -1,4 +1,5 @@
-import { createServer, Event, Context, Result } from './index'
+import { Response } from 'servie'
+import { createHandler, Event, Context, Result } from './index'
 
 describe('servie-lambda', () => {
   const event: Event = {
@@ -26,11 +27,11 @@ describe('servie-lambda', () => {
   }
 
   it('should support routers', (done) => {
-    const handler = createServer(function (_req, res) {
-      res.status = 200
-      res.body = 'response'
-
-      return Promise.resolve()
+    const handler = createHandler(function (req) {
+      return Promise.resolve(new Response(req, {
+        status: 200,
+        body: 'response'
+      }))
     })
 
     return handler(event, context, (err: Error | null, res: Result) => {
@@ -53,7 +54,7 @@ describe('servie-lambda', () => {
   })
 
   it('should fall through to 404', (done) => {
-    const handler = createServer((_req, _res, next) => next())
+    const handler = createHandler((_req, next) => next())
 
     return handler(event, context, (err: Error | null, res: Result) => {
       if (err) {
@@ -69,6 +70,24 @@ describe('servie-lambda', () => {
         },
         isBase64Encoded: false
       })
+
+      return done()
+    })
+  })
+
+  it('should log and rewrite errors', (done) => {
+    const logError = jest.fn()
+    const handler = createHandler(() => Promise.reject(new Error('boom')), { logError })
+
+    return handler(event, context, (err: Error | null, res: Result) => {
+      if (err) {
+        return done(err)
+      }
+
+      expect(res.statusCode).toEqual(500)
+      expect(res.isBase64Encoded).toEqual(false)
+      expect(res.body).toContain('boom')
+      expect(logError).toHaveBeenCalled()
 
       return done()
     })

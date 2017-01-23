@@ -15,15 +15,15 @@ npm install servie-lambda --save
 
 ## Usage
 
-Wrap a standard Servie middleware function in `createServer` to return a AWS Lambda handler.
+Wrap a standard Servie middleware function in `createHandler` to return a AWS Lambda handler.
 
 ```ts
-import { createServer } from 'servie-lambda'
+import { createHandler } from 'servie-lambda'
 import { compose } from 'throwback'
 import { get } from 'servie-route'
 
-export const handler = createServer(compose([
-  get('/test', (req, res) => res.body = 'hello world')
+export const handler = createHandler(compose([
+  get('/test', (req) => new Response({ body: 'hello world' }))
 ]))
 ```
 
