@@ -103,23 +103,26 @@ export function createHandler (fn: App, options: Options = {}) {
     }
 
     fn(req, finalhandler(req))
-      .then((response): void | Promise<void> => {
+      .then((res): void | Promise<void> => {
         if (returned) {
           return
         }
 
-        response.started = true
+        // Mark the response as started.
+        res.started = true
+        req.events.emit('response', res)
 
-        return response.buffer().then((body) => {
-          const isBase64Encoded = options.isBinary ? options.isBinary(response) : false
+        return res.buffer().then((body) => {
+          const isBase64Encoded = options.isBinary ? options.isBinary(res) : false
 
-          response.finished = true
-          response.bytesTransferred = body ? body.length : 0
+          // Mark the response as finished when buffering is done.
+          res.finished = true
+          res.bytesTransferred = body ? body.length : 0
 
           return done(null, {
-            statusCode: response.status,
+            statusCode: res.status,
             body: body ? (isBase64Encoded ? body.toString('base64') : body.toString('utf8')) : undefined,
-            headers: response.headers.object(),
+            headers: res.headers.object(),
             isBase64Encoded
           })
         })
