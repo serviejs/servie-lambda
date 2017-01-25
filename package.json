@@ -45,6 +45,6 @@
     "typings": "^2.1.0"
   },
   "dependencies": {
-    "servie": "^0.1.1"
+    "servie": "^0.2.0"
   }
 }

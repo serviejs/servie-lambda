@@ -27,8 +27,8 @@ describe('servie-lambda', () => {
   }
 
   it('should support routers', (done) => {
-    const handler = createHandler(function (req) {
-      return Promise.resolve(new Response(req, {
+    const handler = createHandler(function () {
+      return Promise.resolve(new Response({
         status: 200,
         body: 'response'
       }))

@@ -83,6 +83,7 @@ export function createHandler (fn: App, options: Options = {}) {
 
     // Handle request and response errors.
     req.events.on('error', done)
+    req.events.on('abort', () => done(null, { statusCode: 444 }))
 
     // Marked request as finished.
     req.started = true
@@ -150,7 +151,7 @@ function mapError (err: any, production: boolean): Result {
  */
 function finalhandler (req: Request) {
   return function () {
-    return Promise.resolve(new Response(req, {
+    return Promise.resolve(new Response({
       status: 404,
       body: `Cannot ${req.method} ${req.url}`
     }))
