@@ -65,7 +65,9 @@ describe('servie-lambda', () => {
         statusCode: 404,
         body: 'Cannot GET /test',
         headers: {
-          'content-type': 'text/plain',
+          'content-type': 'text/html; charset=utf-8',
+          'content-security-policy': "default-src 'self'",
+          'x-content-type-options': 'nosniff',
           'content-length': '16'
         },
         isBase64Encoded: false

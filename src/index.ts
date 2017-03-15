@@ -1,6 +1,7 @@
 import { format } from 'url'
 import { Request, Response } from 'servie'
-import { STATUS_CODES } from 'http'
+import { errorhandler } from 'servie-errorhandler'
+import { finalhandler } from 'servie-finalhandler'
 
 export type App = (req: Request, next: () => Promise<Response>) => Promise<Response>
 
@@ -70,8 +71,7 @@ export function createHandler (fn: App, options: Options = {}) {
     const { httpMethod: method, headers, isBase64Encoded } = event
     const url = format({ pathname: event.path, query: event.queryStringParameters })
     const body = event.body ? new Buffer(event.body, isBase64Encoded ? 'base64' : 'utf8') : undefined
-    const logError = options.logError || ((err: Error) => console.error(err))
-    const production = options.production == null ? (process.env['NODE_ENV'] === 'production') : options.production
+    const isBinary = options.isBinary || (() => false)
     let returned = false
 
     const connection = {
@@ -81,82 +81,56 @@ export function createHandler (fn: App, options: Options = {}) {
 
     const req = new Request({ method, url, connection, headers, body })
 
-    // Handle request and response errors.
-    req.events.on('error', done)
-    req.events.on('abort', () => done(null, { statusCode: 444 }))
+    const mapError = errorhandler(req, {
+      log: options.logError,
+      production: options.production
+    })
 
-    // Marked request as finished.
-    req.started = true
-    req.finished = true
-    req.bytesTransferred = body ? body.length : 0
-
-    function done (err: Error | null, res?: Result) {
-      returned = true
-
-      if (err) {
-        logError(err)
-
-        return cb(null, mapError(err, production))
-      }
-
-      return cb(null, res)
+    function sendError (err: Error) {
+      return sendResponse(mapError(err))
     }
 
-    fn(req, finalhandler(req))
-      .then((res): void | Promise<void> => {
-        if (returned) {
-          return
-        }
+    function sendResponse (res: Response): Promise<void> {
+      if (returned) {
+        return Promise.resolve()
+      }
 
-        // Mark the response as started.
-        res.started = true
-        req.events.emit('response', res)
+      res.started = true
+      req.events.emit('response', res)
 
-        return res.buffer().then((body) => {
-          const isBase64Encoded = options.isBinary ? options.isBinary(res) : false
+      return res.buffer()
+        .then((body) => {
+          const isBase64Encoded = isBinary(res)
+
+          returned = true
 
           // Mark the response as finished when buffering is done.
           res.finished = true
           res.bytesTransferred = body ? body.length : 0
 
-          return done(null, {
+          return cb(null, {
             statusCode: res.status,
             body: body ? (isBase64Encoded ? body.toString('base64') : body.toString('utf8')) : undefined,
             headers: res.headers.object(),
             isBase64Encoded
           })
         })
-      })
-      .catch((err) => done(err))
-  }
-}
+        .catch((err) => sendError(err))
+    }
 
-/**
- * Map a request error to lambda.
- */
-function mapError (err: any, production: boolean): Result {
-  const status = err.status || 500
-  const body = (production ? STATUS_CODES[status] : (err.stack || String(err))) || ''
+    // Handle request and response errors.
+    req.events.on('error', (err: Error) => sendError(err))
+    req.events.on('abort', () => sendResponse(new Response({ status: 444 })))
 
-  return {
-    statusCode: status,
-    headers: {
-      'content-type': 'text/plain',
-      'content-length': String(Buffer.byteLength(body))
-    },
-    body: body,
-    isBase64Encoded: false
-  }
-}
+    // Marked request as finished.
+    req.started = true
+    req.finished = true
+    req.bytesTransferred = body ? body.length : 0
 
-/**
- * Final throwback server handler.
- */
-function finalhandler (req: Request) {
-  return function () {
-    return Promise.resolve(new Response({
-      status: 404,
-      body: `Cannot ${req.method} ${req.url}`
-    }))
+    fn(req, finalhandler(req))
+      .then(
+        (res) => sendResponse(res),
+        (err) => sendError(err)
+      )
   }
 }
