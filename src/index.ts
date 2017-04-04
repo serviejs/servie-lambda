@@ -67,7 +67,7 @@ export interface Options {
  * Create a server for handling AWS Lambda requests.
  */
 export function createHandler (fn: App, options: Options = {}) {
-  return function (event: Event, _context: Context, cb: (err: Error | null, res?: Result) => void): void {
+  return function (event: Event, _context: Context, cb: (err: Error | null, res?: Result) => void): Promise<void> {
     const { httpMethod: method, headers, isBase64Encoded } = event
     const url = format({ pathname: event.path, query: event.queryStringParameters })
     const body = event.body ? new Buffer(event.body, isBase64Encoded ? 'base64' : 'utf8') : undefined
@@ -127,7 +127,7 @@ export function createHandler (fn: App, options: Options = {}) {
     req.finished = true
     req.bytesTransferred = body ? body.length : 0
 
-    fn(req, finalhandler(req))
+    return Promise.resolve(fn(req, finalhandler(req)))
       .then(
         (res) => sendResponse(res),
         (err) => sendError(err)
