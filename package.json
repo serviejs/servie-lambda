@@ -46,7 +46,7 @@
   },
   "dependencies": {
     "servie": "^0.2.0",
-    "servie-errorhandler": "0.0.1",
+    "servie-errorhandler": "^0.1.0",
     "servie-finalhandler": "^0.1.0"
   }
 }
