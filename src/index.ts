@@ -1,9 +1,10 @@
 import { format } from 'url'
-import { Request, Response } from 'servie'
+import { Request, Response, Headers } from 'servie'
 import { errorhandler } from 'servie-errorhandler'
 import { finalhandler } from 'servie-finalhandler'
+import { mask } from 'bit-string-mask'
 
-export type App = (req: Request, next: () => Promise<Response>) => Promise<Response>
+export type App = (req: Request, next: () => Promise<Response>) => Response | Promise<Response>
 
 /**
  * AWS Lambda event object.
@@ -104,14 +105,14 @@ export function createHandler (fn: App, options: Options = {}) {
 
           returned = true
 
-          // Mark the response as finished when buffering is done.
+          // Mark the response as finished when buffering is complete.
           res.finished = true
           res.bytesTransferred = body ? body.length : 0
 
           return cb(null, {
             statusCode: res.status,
             body: body ? (isBase64Encoded ? body.toString('base64') : body.toString('utf8')) : undefined,
-            headers: res.headers.object(),
+            headers: getHeaders(res.headers),
             isBase64Encoded
           })
         })
@@ -133,4 +134,29 @@ export function createHandler (fn: App, options: Options = {}) {
         (err) => sendError(err)
       )
   }
+}
+
+/**
+ * Return a lambda compatible object of headers.
+ */
+function getHeaders (headers: Headers) {
+  const result = Object.create(null)
+
+  if (headers.raw.length) {
+    const obj = headers.object()
+
+    for (const key of Object.keys(obj)) {
+      const val = obj[key]
+
+      if (Array.isArray(val)) {
+        for (let i = 0; i < val.length; i++) {
+          result[mask(key, i)] = val[i]
+        }
+      } else {
+        result[key] = val
+      }
+    }
+  }
+
+  return result
 }

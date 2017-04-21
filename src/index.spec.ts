@@ -77,6 +77,35 @@ describe('servie-lambda', () => {
     })
   })
 
+  it('should support multiple headers of the same key', (done) => {
+    const handler = createHandler(() => {
+      return new Response({
+        headers: {
+          'Set-Cookie': ['a=a', 'b=b', 'c=c']
+        }
+      })
+    })
+
+    return handler(event, context, (err: Error | null, res: Result) => {
+      if (err) {
+        return done(err)
+      }
+
+      expect(res).toEqual({
+        statusCode: undefined,
+        body: undefined,
+        headers: {
+          'set-cookie': 'a=a',
+          'Set-cookie': 'b=b',
+          'sEt-cookie': 'c=c'
+        },
+        isBase64Encoded: false
+      })
+
+      return done()
+    })
+  })
+
   it('should log and rewrite errors', (done) => {
     const logError = jest.fn()
     const handler = createHandler(() => Promise.reject(new Error('boom')), { logError })
