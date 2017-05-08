@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/blakeembrey/node-servie-lambda.git"
+    "url": "git://github.com/serviejs/servie-lambda.git"
   },
   "keywords": [
     "servie",
@@ -33,9 +33,9 @@
   },
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/blakeembrey/node-servie-lambda/issues"
+    "url": "https://github.com/serviejs/servie-lambda/issues"
   },
-  "homepage": "https://github.com/blakeembrey/node-servie-lambda",
+  "homepage": "https://github.com/serviejs/servie-lambda",
   "devDependencies": {
     "jest": "^19.0.0",
     "rimraf": "^2.5.4",
