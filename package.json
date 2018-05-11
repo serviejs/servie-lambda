@@ -8,11 +8,11 @@
     "dist/"
   ],
   "scripts": {
-    "lint": "tslint \"src/**/*.ts\" --type-check --project tsconfig.json",
+    "lint": "tslint \"src/**/*.ts\" --project tsconfig.json",
     "build": "rimraf dist && tsc",
     "specs": "jest --coverage",
     "test": "npm run -s lint && npm run -s build && npm run -s specs",
-    "prepublish": "typings install && npm run build"
+    "prepublish": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -37,17 +37,21 @@
   },
   "homepage": "https://github.com/serviejs/servie-lambda",
   "devDependencies": {
-    "jest": "^19.0.0",
+    "@types/jest": "^22.2.3",
+    "@types/node": "^10.0.8",
+    "jest": "^22.4.3",
     "rimraf": "^2.5.4",
-    "tslint": "^5.1.0",
-    "tslint-config-standard": "^5.0.2",
-    "typescript": "^2.2.1",
-    "typings": "^2.1.0"
+    "servie": "^3.0.0",
+    "tslint": "^5.10.0",
+    "tslint-config-standard": "^7.0.0",
+    "typescript": "^2.8.3"
+  },
+  "peerDependencies": {
+    "servie": "^3.0.0"
   },
   "dependencies": {
     "bit-string-mask": "^1.0.0",
-    "servie": "^0.2.0",
-    "servie-errorhandler": "^0.1.0",
-    "servie-finalhandler": "^0.1.0"
+    "servie-errorhandler": "^1.2.0",
+    "servie-finalhandler": "^1.1.0"
   }
 }

@@ -1,10 +1,9 @@
 import { format } from 'url'
-import { Request, Response, Headers } from 'servie'
+import { Request, Response, Headers, createHeaders } from 'servie'
+import { createBody } from 'servie/dist/body/node'
 import { errorhandler } from 'servie-errorhandler'
 import { finalhandler } from 'servie-finalhandler'
 import { mask } from 'bit-string-mask'
-
-export type App = (req: Request, next: () => Promise<Response>) => Response | Promise<Response>
 
 /**
  * AWS Lambda event object.
@@ -33,14 +32,37 @@ export interface Event {
 
 /**
  * AWS lambda context object.
+ *
+ * Reference: https://docs.aws.amazon.com/lambda/latest/dg/nodejs-prog-model-context.html
  */
 export interface Context {
+  getRemainingTimeInMillis: () => number
+  callbackWaitsForEmptyEventLoop: boolean
   functionName: string
-  memoryLimitInMB: string
   functionVersion: string
-  invokeid: string
-  awsRequestId: string
   invokedFunctionArn: string
+  memoryLimitInMB: string
+  awsRequestId: string
+  logGroupName: string
+  logStreamName: string
+  identity: { cognitoIdentityId: string, cognitoIdentityPoolId: string } | null
+  clientContext: {
+    client: {
+      installation_id: string
+      app_title: string
+      app_version_name: string
+      app_version_code: string
+      app_package_name: string
+    }
+    Custom: any
+    env: {
+      platform_version: string
+      platform: string
+      make: string
+      model: string
+      locale: string
+    }
+  } | null
 }
 
 /**
@@ -56,6 +78,18 @@ export interface Result {
 }
 
 /**
+ * Extend Servie Request with AWS Lambda context.
+ */
+export interface LambdaRequest extends Request {
+  context: Context
+}
+
+/**
+ * Valid Servie lambda application.
+ */
+export type App = (req: Request, next: () => Promise<Response>) => Response | Promise<Response>
+
+/**
  * Lambda server options.
  */
 export interface Options {
@@ -67,13 +101,15 @@ export interface Options {
 /**
  * Create a server for handling AWS Lambda requests.
  */
-export function createHandler (fn: App, options: Options = {}) {
-  return function (event: Event, _context: Context, cb: (err: Error | null, res?: Result) => void): Promise<void> {
-    const { httpMethod: method, headers, isBase64Encoded } = event
+export function createHandler (app: App, options: Options = {}) {
+  return function (event: Event, context: Context, cb: (err: Error | null, res?: Result) => void): Promise<void> {
+    const { httpMethod: method } = event
     const url = format({ pathname: event.path, query: event.queryStringParameters })
-    const body = event.body ? new Buffer(event.body, isBase64Encoded ? 'base64' : 'utf8') : undefined
     const isBinary = options.isBinary || (() => false)
-    let returned = false
+    const headers = createHeaders(event.headers)
+    const rawBody = event.body ? Buffer.from(event.body, event.isBase64Encoded ? 'base64' : 'utf8') : undefined
+    const body = createBody(rawBody)
+    let didRespond = false
 
     const connection = {
       encrypted: true,
@@ -92,43 +128,39 @@ export function createHandler (fn: App, options: Options = {}) {
     }
 
     function sendResponse (res: Response): Promise<void> {
-      if (returned) {
-        return Promise.resolve()
-      }
+      if (didRespond) return Promise.resolve()
 
       res.started = true
       req.events.emit('response', res)
 
-      return res.buffer()
-        .then((body) => {
+      return res.body.arrayBuffer()
+        .then((buffer) => {
+          const { statusCode } = res
+          const headers = getHeaders(res.allHeaders)
           const isBase64Encoded = isBinary(res)
+          const body = Buffer.from(buffer).toString(isBase64Encoded ? 'base64' : 'utf8')
 
-          returned = true
+          didRespond = true
 
           // Mark the response as finished when buffering is complete.
           res.finished = true
-          res.bytesTransferred = body ? body.length : 0
+          res.bytesTransferred = buffer ? buffer.byteLength : 0
 
-          return cb(null, {
-            statusCode: res.status,
-            body: body ? (isBase64Encoded ? body.toString('base64') : body.toString('utf8')) : undefined,
-            headers: getHeaders(res.headers),
-            isBase64Encoded
-          })
+          return cb(null, { statusCode, headers, body, isBase64Encoded })
         })
         .catch((err) => sendError(err))
     }
 
     // Handle request and response errors.
     req.events.on('error', (err: Error) => sendError(err))
-    req.events.on('abort', () => sendResponse(new Response({ status: 444 })))
+    req.events.on('abort', () => sendResponse(new Response({ statusCode: 444 })))
 
     // Marked request as finished.
     req.started = true
     req.finished = true
-    req.bytesTransferred = body ? body.length : 0
+    req.bytesTransferred = rawBody ? rawBody.byteLength : 0
 
-    return Promise.resolve(fn(req, finalhandler(req)))
+    return Promise.resolve(app(Object.assign(req, { context }), finalhandler(req)))
       .then(
         (res) => sendResponse(res),
         (err) => sendError(err)
@@ -141,20 +173,17 @@ export function createHandler (fn: App, options: Options = {}) {
  */
 function getHeaders (headers: Headers) {
   const result = Object.create(null)
+  const obj = headers.asObject()
 
-  if (headers.raw.length) {
-    const obj = headers.object()
+  for (const key of Object.keys(obj)) {
+    const val = obj[key]
 
-    for (const key of Object.keys(obj)) {
-      const val = obj[key]
-
-      if (Array.isArray(val)) {
-        for (let i = 0; i < val.length; i++) {
-          result[mask(key, i)] = val[i]
-        }
-      } else {
-        result[key] = val
+    if (Array.isArray(val)) {
+      for (let i = 0; i < val.length; i++) {
+        result[mask(key, i)] = val[i]
       }
+    } else {
+      result[key] = val
     }
   }
 

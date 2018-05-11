@@ -1,4 +1,5 @@
-import { Response } from 'servie'
+import { Response, createHeaders } from 'servie'
+import { createBody } from 'servie/dist/body/node'
 import { createHandler, Event, Context, Result } from './index'
 
 describe('servie-lambda', () => {
@@ -17,20 +18,17 @@ describe('servie-lambda', () => {
     }
   }
 
-  const context: Context = {
+  const context = {
     functionName: '',
     functionVersion: '$LATEST',
-    memoryLimitInMB: '128',
-    invokeid: '',
-    awsRequestId: '',
-    invokedFunctionArn: ''
-  }
+    memoryLimitInMB: '128'
+  } as Context
 
   it('should support routers', (done) => {
     const handler = createHandler(function () {
       return Promise.resolve(new Response({
-        status: 200,
-        body: 'response'
+        statusCode: 200,
+        body: createBody('response')
       }))
     })
 
@@ -65,7 +63,7 @@ describe('servie-lambda', () => {
         statusCode: 404,
         body: 'Cannot GET /test',
         headers: {
-          'content-type': 'text/html; charset=utf-8',
+          'content-type': 'text/plain',
           'content-security-policy': "default-src 'self'",
           'x-content-type-options': 'nosniff',
           'content-length': '16'
@@ -80,9 +78,9 @@ describe('servie-lambda', () => {
   it('should support multiple headers of the same key', (done) => {
     const handler = createHandler(() => {
       return new Response({
-        headers: {
+        headers: createHeaders({
           'Set-Cookie': ['a=a', 'b=b', 'c=c']
-        }
+        })
       })
     })
 
@@ -92,8 +90,8 @@ describe('servie-lambda', () => {
       }
 
       expect(res).toEqual({
-        statusCode: undefined,
-        body: undefined,
+        statusCode: 200,
+        body: '',
         headers: {
           'set-cookie': 'a=a',
           'Set-cookie': 'b=b',
