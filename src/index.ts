@@ -1,5 +1,6 @@
 import { format } from 'url'
-import { Request, Response, Headers, createHeaders } from 'servie'
+import { Response, Headers, createHeaders } from 'servie'
+import { HttpRequest, HttpRequestOptions } from 'servie-http'
 import { createBody } from 'servie/dist/body/node'
 import { errorhandler } from 'servie-errorhandler'
 import { finalhandler } from 'servie-finalhandler'
@@ -78,16 +79,30 @@ export interface Result {
 }
 
 /**
- * Extend Servie Request with AWS Lambda context.
+ * Extends HTTP requests with AWS lambda context.
  */
-export interface LambdaRequest extends Request {
+export interface LambdaRequestOptions extends HttpRequestOptions {
   context: Context
 }
 
 /**
- * Valid Servie lambda application.
+ * Extends HTTP requests with AWS Lambda context.
  */
-export type App = (req: Request, next: () => Promise<Response>) => Response | Promise<Response>
+export class LambdaRequest extends HttpRequest {
+
+  context: Context
+
+  constructor (options: LambdaRequestOptions) {
+    super(options)
+    this.context = options.context
+  }
+
+}
+
+/**
+ * Valid AWS lambda server signature.
+ */
+export type App = (req: LambdaRequest, next: () => Promise<Response>) => Response | Promise<Response>
 
 /**
  * Lambda server options.
@@ -102,7 +117,7 @@ export interface Options {
  * Create a server for handling AWS Lambda requests.
  */
 export function createHandler (app: App, options: Options = {}) {
-  return function (event: Event, context: Context, cb: (err: Error | null, res?: Result) => void): Promise<void> {
+  return function (event: Event, context: Context, cb: (err: Error | null, res: Result) => void): Promise<void> {
     const { httpMethod: method } = event
     const url = format({ pathname: event.path, query: event.queryStringParameters })
     const isBinary = options.isBinary || (() => false)
@@ -116,16 +131,12 @@ export function createHandler (app: App, options: Options = {}) {
       remoteAddress: event.requestContext.identity.sourceIp
     }
 
-    const req = new Request({ method, url, connection, headers, body })
+    const req = new LambdaRequest({ method, url, connection, headers, body, context })
 
     const mapError = errorhandler(req, {
       log: options.logError,
       production: options.production
     })
-
-    function sendError (err: Error) {
-      return sendResponse(mapError(err))
-    }
 
     function sendResponse (res: Response): Promise<void> {
       if (didRespond) return Promise.resolve()
@@ -136,7 +147,7 @@ export function createHandler (app: App, options: Options = {}) {
       return res.body.arrayBuffer()
         .then((buffer) => {
           const { statusCode } = res
-          const headers = getHeaders(res.allHeaders)
+          const headers = toHeaders(res.allHeaders)
           const isBase64Encoded = isBinary(res)
           const body = Buffer.from(buffer).toString(isBase64Encoded ? 'base64' : 'utf8')
 
@@ -148,11 +159,11 @@ export function createHandler (app: App, options: Options = {}) {
 
           return cb(null, { statusCode, headers, body, isBase64Encoded })
         })
-        .catch((err) => sendError(err))
+        .catch((err) => sendResponse(mapError(err)))
     }
 
     // Handle request and response errors.
-    req.events.on('error', (err: Error) => sendError(err))
+    req.events.on('error', (err: Error) => sendResponse(mapError(err)))
     req.events.on('abort', () => sendResponse(new Response({ statusCode: 444 })))
 
     // Marked request as finished.
@@ -160,10 +171,10 @@ export function createHandler (app: App, options: Options = {}) {
     req.finished = true
     req.bytesTransferred = rawBody ? rawBody.byteLength : 0
 
-    return Promise.resolve(app(Object.assign(req, { context }), finalhandler(req)))
+    return Promise.resolve(app(req, finalhandler(req)))
       .then(
         (res) => sendResponse(res),
-        (err) => sendError(err)
+        (err) => sendResponse(mapError(err))
       )
   }
 }
@@ -171,7 +182,7 @@ export function createHandler (app: App, options: Options = {}) {
 /**
  * Return a lambda compatible object of headers.
  */
-function getHeaders (headers: Headers) {
+function toHeaders (headers: Headers) {
   const result = Object.create(null)
   const obj = headers.asObject()
 

@@ -52,6 +52,7 @@
   "dependencies": {
     "bit-string-mask": "^1.0.0",
     "servie-errorhandler": "^1.2.0",
-    "servie-finalhandler": "^1.1.0"
+    "servie-finalhandler": "^1.1.0",
+    "servie-http": "^1.1.0"
   }
 }
