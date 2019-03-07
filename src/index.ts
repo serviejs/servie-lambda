@@ -117,7 +117,7 @@ export interface Options {
  * Create a server for handling AWS Lambda requests.
  */
 export function createHandler (app: App, options: Options = {}) {
-  return function (event: Event, context: Context, cb: (err: Error | null, res: Result) => void): Promise<void> {
+  return function (event: Event, context: Context, cb: (err: Error | null, res: Result) => void): void {
     const { httpMethod: method } = event
     const url = format({ pathname: event.path, query: event.queryStringParameters })
     const isBinary = options.isBinary || (() => false)
@@ -171,11 +171,10 @@ export function createHandler (app: App, options: Options = {}) {
     req.finished = true
     req.bytesTransferred = rawBody ? rawBody.byteLength : 0
 
-    return Promise.resolve(app(req, finalhandler(req)))
-      .then(
-        (res) => sendResponse(res),
-        (err) => sendResponse(mapError(err))
-      )
+    Promise.resolve(app(req, finalhandler(req))).then(
+      (res) => sendResponse(res),
+      (err) => sendResponse(mapError(err))
+    )
   }
 }
 
