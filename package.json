@@ -37,14 +37,14 @@
   },
   "homepage": "https://github.com/serviejs/servie-lambda",
   "devDependencies": {
-    "@types/jest": "^22.2.3",
-    "@types/node": "^10.0.8",
-    "jest": "^22.4.3",
+    "@types/jest": "^24.0.9",
+    "@types/node": "^11.10.5",
+    "jest": "^24.1.0",
     "rimraf": "^2.5.4",
     "servie": "^3.0.0",
     "tslint": "^5.10.0",
-    "tslint-config-standard": "^7.0.0",
-    "typescript": "^2.8.3"
+    "tslint-config-standard": "^8.0.1",
+    "typescript": "^3.3.3333"
   },
   "peerDependencies": {
     "servie": "^3.0.0"
