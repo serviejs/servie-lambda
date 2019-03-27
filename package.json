@@ -79,7 +79,7 @@
     "servie": "^3.0.0"
   },
   "dependencies": {
-    "bit-string-mask": "^1.0.0",
+    "@types/aws-lambda": "^8.10.23",
     "servie-errorhandler": "^1.2.0",
     "servie-finalhandler": "^1.1.0",
     "servie-http": "^1.1.0"

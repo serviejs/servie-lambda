@@ -9,20 +9,26 @@ describe("servie-lambda", () => {
     httpMethod: "GET",
     body: null,
     resource: "/test",
-    headers: null,
-    queryStringParameters: null,
+    headers: {},
+    multiValueHeaders: {
+      Test: ["a", "b", "c"]
+    },
+    isBase64Encoded: false,
+    queryStringParameters: {},
+    multiValueQueryStringParameters: {},
+    stageVariables: {},
     requestContext: {
       identity: {
-        sourceIp: ""
+        sourceIp: "127.0.0.1"
       }
-    }
+    } as any
   };
 
-  const context = {
+  const context = ({
     functionName: "",
     functionVersion: "$LATEST",
     memoryLimitInMB: "128"
-  } as Context;
+  } as any) as Context;
 
   it("should support routers", done => {
     const handler = createHandler(function() {
@@ -34,17 +40,15 @@ describe("servie-lambda", () => {
       );
     });
 
-    return handler(event, context, (err: Error | null, res: Result) => {
-      if (err) {
-        return done(err);
-      }
+    return handler(event, context, (err, res) => {
+      if (err) return done(err);
 
       expect(res).toEqual({
         statusCode: 200,
         body: "response",
-        headers: {
-          "content-type": "text/plain",
-          "content-length": "8"
+        multiValueHeaders: {
+          "Content-Type": ["text/plain"],
+          "Content-Length": ["8"]
         },
         isBase64Encoded: false
       });
@@ -56,19 +60,17 @@ describe("servie-lambda", () => {
   it("should fall through to 404", done => {
     const handler = createHandler((_req, next) => next());
 
-    return handler(event, context, (err: Error | null, res: Result) => {
-      if (err) {
-        return done(err);
-      }
+    return handler(event, context, (err, res) => {
+      if (err) return done(err);
 
       expect(res).toEqual({
         statusCode: 404,
         body: "Cannot GET /test",
-        headers: {
-          "content-type": "text/plain",
-          "content-security-policy": "default-src 'self'",
-          "x-content-type-options": "nosniff",
-          "content-length": "16"
+        multiValueHeaders: {
+          "Content-Type": ["text/plain"],
+          "Content-Security-Policy": ["default-src 'self'"],
+          "X-Content-Type-Options": ["nosniff"],
+          "Content-Length": ["16"]
         },
         isBase64Encoded: false
       });
@@ -86,18 +88,14 @@ describe("servie-lambda", () => {
       });
     });
 
-    return handler(event, context, (err: Error | null, res: Result) => {
-      if (err) {
-        return done(err);
-      }
+    return handler(event, context, (err, res) => {
+      if (err) return done(err);
 
       expect(res).toEqual({
         statusCode: 200,
         body: "",
-        headers: {
-          "set-cookie": "a=a",
-          "Set-cookie": "b=b",
-          "sEt-cookie": "c=c"
+        multiValueHeaders: {
+          "Set-Cookie": ["a=a", "b=b", "c=c"]
         },
         isBase64Encoded: false
       });
@@ -112,14 +110,12 @@ describe("servie-lambda", () => {
       logError
     });
 
-    return handler(event, context, (err: Error | null, res: Result) => {
-      if (err) {
-        return done(err);
-      }
+    return handler(event, context, (err, res) => {
+      if (err) return done(err);
 
-      expect(res.statusCode).toEqual(500);
-      expect(res.isBase64Encoded).toEqual(false);
-      expect(res.body).toContain("boom");
+      expect(res!.statusCode).toEqual(500);
+      expect(res!.isBase64Encoded).toEqual(false);
+      expect(res!.body).toContain("boom");
       expect(logError).toHaveBeenCalled();
 
       return done();
