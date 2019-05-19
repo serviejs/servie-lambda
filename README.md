@@ -23,7 +23,7 @@ import { compose } from "throwback";
 import { get } from "servie-route";
 
 export const handler = createHandler(
-  compose([get("/test", req => new Response({ body: "hello world" }))])
+  compose([get("/test", req => new Response("hello world"))])
 );
 ```
 

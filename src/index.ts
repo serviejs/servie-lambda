@@ -1,7 +1,5 @@
 import { format } from "url";
-import { Response, Headers, createHeaders } from "servie";
-import { HttpRequest, HttpRequestOptions } from "servie-http";
-import { createBody } from "servie/dist/body/node";
+import { Request, Response, Headers, RequestOptions } from "servie/dist/node";
 import { errorhandler } from "servie-errorhandler";
 import { finalhandler } from "servie-finalhandler";
 import {
@@ -14,20 +12,20 @@ import {
 export { Handler, Event, Context, Result };
 
 /**
- * Extends HTTP requests with AWS lambda context.
+ * Extends `Request` with AWS lambda context.
  */
-export interface LambdaRequestOptions extends HttpRequestOptions {
+export interface LambdaRequestOptions extends RequestOptions {
   context: Context;
 }
 
 /**
  * Extends HTTP requests with AWS Lambda context.
  */
-export class LambdaRequest extends HttpRequest {
+export class LambdaRequest extends Request {
   context: Context;
 
-  constructor(options: LambdaRequestOptions) {
-    super(options);
+  constructor(input: string | LambdaRequest, options: LambdaRequestOptions) {
+    super(input, options);
     this.context = options.context;
   }
 }
@@ -60,23 +58,14 @@ export function createHandler(app: App, options: Options = {}): Handler {
       query: event.multiValueQueryStringParameters
     });
     const isBinary = options.isBinary || (() => false);
-    const headers = createHeaders(event.multiValueHeaders);
-    const rawBody = event.body
+    const body = event.body
       ? Buffer.from(event.body, event.isBase64Encoded ? "base64" : "utf8")
       : undefined;
-    const body = createBody(rawBody);
     let didRespond = false;
 
-    const connection = {
-      encrypted: true,
-      remoteAddress: event.requestContext.identity.sourceIp
-    };
-
-    const req = new LambdaRequest({
+    const req = new LambdaRequest(url, {
+      headers: event.multiValueHeaders,
       method,
-      url,
-      connection,
-      headers,
       body,
       context
     });
@@ -89,24 +78,20 @@ export function createHandler(app: App, options: Options = {}): Handler {
     function sendResponse(res: Response): Promise<void> {
       if (didRespond) return Promise.resolve();
 
-      res.started = true;
-      req.events.emit("response", res);
+      req.signal.emit("responseStarted");
 
-      return res.body
-        .arrayBuffer()
-        .then(buffer => {
-          const { statusCode } = res;
-          const multiValueHeaders = toMultiValueHeaders(res.allHeaders);
+      return res.buffer().then(
+        buffer => {
+          const { status: statusCode } = res;
+          const multiValueHeaders = toMultiValueHeaders(res.headers);
           const isBase64Encoded = isBinary(res);
-          const body = Buffer.from(buffer).toString(
-            isBase64Encoded ? "base64" : "utf8"
-          );
+          const body = buffer.toString(isBase64Encoded ? "base64" : "utf8");
 
           didRespond = true;
 
-          // Mark the response as finished when buffering is complete.
-          res.finished = true;
-          res.bytesTransferred = buffer ? buffer.byteLength : 0;
+          // Emit stats at end of response.
+          req.signal.emit("responseBytes", buffer ? buffer.byteLength : 0);
+          req.signal.emit("responseEnded");
 
           return callback(null, {
             statusCode,
@@ -114,20 +99,19 @@ export function createHandler(app: App, options: Options = {}): Handler {
             body,
             isBase64Encoded
           });
-        })
-        .catch(err => sendResponse(mapError(err)));
+        },
+        err => sendResponse(mapError(err))
+      );
     }
 
-    // Handle request and response errors.
-    req.events.on("error", (err: Error) => sendResponse(mapError(err)));
-    req.events.on("abort", () =>
-      sendResponse(new Response({ statusCode: 444 }))
+    req.signal.on("abort", () =>
+      sendResponse(new Response(null, { status: 444 }))
     );
 
     // Marked request as finished.
-    req.started = true;
-    req.finished = true;
-    req.bytesTransferred = rawBody ? rawBody.byteLength : 0;
+    req.signal.emit("requestStarted");
+    req.signal.emit("requestBytes", body ? body.byteLength : 0);
+    req.signal.emit("requestStarted");
 
     Promise.resolve(app(req, finalhandler(req))).then(
       res => sendResponse(res),

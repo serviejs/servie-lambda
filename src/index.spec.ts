@@ -1,6 +1,5 @@
-import { Response, createHeaders } from "servie";
-import { createBody } from "servie/dist/body/node";
-import { createHandler, Event, Context, Result } from "./index";
+import { Response } from "servie/dist/node";
+import { createHandler, Event, Context } from "./index";
 
 describe("servie-lambda", () => {
   const event: Event = {
@@ -32,12 +31,9 @@ describe("servie-lambda", () => {
 
   it("should support routers", done => {
     const handler = createHandler(function() {
-      return Promise.resolve(
-        new Response({
-          statusCode: 200,
-          body: createBody("response")
-        })
-      );
+      return new Response("response", {
+        status: 200
+      });
     });
 
     return handler(event, context, (err, res) => {
@@ -47,8 +43,8 @@ describe("servie-lambda", () => {
         statusCode: 200,
         body: "response",
         multiValueHeaders: {
-          "Content-Type": ["text/plain"],
-          "Content-Length": ["8"]
+          "content-type": ["text/plain"],
+          "content-length": ["8"]
         },
         isBase64Encoded: false
       });
@@ -67,10 +63,10 @@ describe("servie-lambda", () => {
         statusCode: 404,
         body: "Cannot GET /test",
         multiValueHeaders: {
-          "Content-Type": ["text/plain"],
-          "Content-Security-Policy": ["default-src 'self'"],
-          "X-Content-Type-Options": ["nosniff"],
-          "Content-Length": ["16"]
+          "content-type": ["text/plain"],
+          "content-security-policy": ["default-src 'self'"],
+          "x-content-type-options": ["nosniff"],
+          "content-length": ["16"]
         },
         isBase64Encoded: false
       });
@@ -81,10 +77,10 @@ describe("servie-lambda", () => {
 
   it("should support multiple headers of the same key", done => {
     const handler = createHandler(() => {
-      return new Response({
-        headers: createHeaders({
+      return new Response(null, {
+        headers: {
           "Set-Cookie": ["a=a", "b=b", "c=c"]
-        })
+        }
       });
     });
 
@@ -95,7 +91,7 @@ describe("servie-lambda", () => {
         statusCode: 200,
         body: "",
         multiValueHeaders: {
-          "Set-Cookie": ["a=a", "b=b", "c=c"]
+          "set-cookie": ["a=a", "b=b", "c=c"]
         },
         isBase64Encoded: false
       });
