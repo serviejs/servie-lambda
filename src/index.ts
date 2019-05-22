@@ -16,6 +16,7 @@ export { Handler, Event, Context, Result };
  */
 export interface LambdaRequestOptions extends RequestOptions {
   context: Context;
+  event: Event;
 }
 
 /**
@@ -23,10 +24,12 @@ export interface LambdaRequestOptions extends RequestOptions {
  */
 export class LambdaRequest extends Request {
   context: Context;
+  event: Event;
 
   constructor(input: string | LambdaRequest, options: LambdaRequestOptions) {
     super(input, options);
     this.context = options.context;
+    this.event = options.event;
   }
 }
 
@@ -67,7 +70,8 @@ export function createHandler(app: App, options: Options = {}): Handler {
       headers: event.multiValueHeaders,
       method,
       body,
-      context
+      context,
+      event
     });
 
     const mapError = errorhandler(req, {
