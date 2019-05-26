@@ -4,12 +4,16 @@ import { errorhandler } from "servie-errorhandler";
 import { finalhandler } from "servie-finalhandler";
 import {
   APIGatewayEvent as Event,
-  APIGatewayProxyHandler as Handler,
   APIGatewayProxyResult as Result,
   Context
 } from "aws-lambda";
 
-export { Handler, Event, Context, Result };
+export { Event, Context, Result };
+
+/**
+ * AWS Lambda promise handler.
+ */
+export type Handler = (event: Event, context: Context) => Promise<Result>;
 
 /**
  * Extends `Request` with AWS lambda context.
@@ -54,7 +58,7 @@ export interface Options {
  * Create a server for handling AWS Lambda requests.
  */
 export function createHandler(app: App, options: Options = {}): Handler {
-  return function(event, context, callback): void {
+  return function(event, context): Promise<Result> {
     const { httpMethod: method } = event;
     const url = format({
       pathname: event.path,
@@ -64,7 +68,6 @@ export function createHandler(app: App, options: Options = {}): Handler {
     const body = event.body
       ? Buffer.from(event.body, event.isBase64Encoded ? "base64" : "utf8")
       : undefined;
-    let didRespond = false;
 
     const req = new LambdaRequest(url, {
       headers: event.multiValueHeaders,
@@ -79,9 +82,7 @@ export function createHandler(app: App, options: Options = {}): Handler {
       production: options.production
     });
 
-    function sendResponse(res: Response): Promise<void> {
-      if (didRespond) return Promise.resolve();
-
+    function sendResponse(res: Response): Promise<Result> {
       req.signal.emit("responseStarted");
 
       return res.buffer().then(
@@ -91,36 +92,41 @@ export function createHandler(app: App, options: Options = {}): Handler {
           const isBase64Encoded = isBinary(res);
           const body = buffer.toString(isBase64Encoded ? "base64" : "utf8");
 
-          didRespond = true;
-
           // Emit stats at end of response.
           req.signal.emit("responseBytes", buffer ? buffer.byteLength : 0);
           req.signal.emit("responseEnded");
 
-          return callback(null, {
+          return {
             statusCode,
             multiValueHeaders,
             body,
             isBase64Encoded
-          });
+          };
         },
         err => sendResponse(mapError(err))
       );
     }
-
-    req.signal.on("abort", () =>
-      sendResponse(new Response(null, { status: 444 }))
-    );
 
     // Marked request as finished.
     req.signal.emit("requestStarted");
     req.signal.emit("requestBytes", body ? body.byteLength : 0);
     req.signal.emit("requestStarted");
 
-    Promise.resolve(app(req, finalhandler(req))).then(
-      res => sendResponse(res),
-      err => sendResponse(mapError(err))
-    );
+    return new Promise(resolve => {
+      let result: Promise<Result> | undefined;
+
+      req.signal.on("abort", () => {
+        result = sendResponse(new Response(null, { status: 444 }));
+        return resolve(result);
+      });
+
+      return resolve(
+        Promise.resolve(app(req, finalhandler(req))).then(
+          res => result || sendResponse(res),
+          err => result || sendResponse(mapError(err))
+        )
+      );
+    });
   };
 }
 

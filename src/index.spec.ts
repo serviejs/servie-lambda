@@ -29,53 +29,45 @@ describe("servie-lambda", () => {
     memoryLimitInMB: "128"
   } as any) as Context;
 
-  it("should support routers", done => {
+  it("should support routers", async () => {
     const handler = createHandler(function() {
       return new Response("response", {
         status: 200
       });
     });
 
-    return handler(event, context, (err, res) => {
-      if (err) return done(err);
+    const res = await handler(event, context);
 
-      expect(res).toEqual({
-        statusCode: 200,
-        body: "response",
-        multiValueHeaders: {
-          "content-type": ["text/plain"],
-          "content-length": ["8"]
-        },
-        isBase64Encoded: false
-      });
-
-      return done();
+    expect(res).toEqual({
+      statusCode: 200,
+      body: "response",
+      multiValueHeaders: {
+        "content-type": ["text/plain"],
+        "content-length": ["8"]
+      },
+      isBase64Encoded: false
     });
   });
 
-  it("should fall through to 404", done => {
+  it("should fall through to 404", async () => {
     const handler = createHandler((_req, next) => next());
 
-    return handler(event, context, (err, res) => {
-      if (err) return done(err);
+    const res = await handler(event, context);
 
-      expect(res).toEqual({
-        statusCode: 404,
-        body: "Cannot GET /test",
-        multiValueHeaders: {
-          "content-type": ["text/plain"],
-          "content-security-policy": ["default-src 'self'"],
-          "x-content-type-options": ["nosniff"],
-          "content-length": ["16"]
-        },
-        isBase64Encoded: false
-      });
-
-      return done();
+    expect(res).toEqual({
+      statusCode: 404,
+      body: "Cannot GET /test",
+      multiValueHeaders: {
+        "content-type": ["text/plain"],
+        "content-security-policy": ["default-src 'self'"],
+        "x-content-type-options": ["nosniff"],
+        "content-length": ["16"]
+      },
+      isBase64Encoded: false
     });
   });
 
-  it("should support multiple headers of the same key", done => {
+  it("should support multiple headers of the same key", async () => {
     const handler = createHandler(() => {
       return new Response(null, {
         headers: {
@@ -84,37 +76,29 @@ describe("servie-lambda", () => {
       });
     });
 
-    return handler(event, context, (err, res) => {
-      if (err) return done(err);
+    const res = await handler(event, context);
 
-      expect(res).toEqual({
-        statusCode: 200,
-        body: "",
-        multiValueHeaders: {
-          "set-cookie": ["a=a", "b=b", "c=c"]
-        },
-        isBase64Encoded: false
-      });
-
-      return done();
+    expect(res).toEqual({
+      statusCode: 200,
+      body: "",
+      multiValueHeaders: {
+        "set-cookie": ["a=a", "b=b", "c=c"]
+      },
+      isBase64Encoded: false
     });
   });
 
-  it("should log and rewrite errors", done => {
+  it("should log and rewrite errors", async () => {
     const logError = jest.fn();
     const handler = createHandler(() => Promise.reject(new Error("boom")), {
       logError
     });
 
-    return handler(event, context, (err, res) => {
-      if (err) return done(err);
+    const res = await handler(event, context);
 
-      expect(res!.statusCode).toEqual(500);
-      expect(res!.isBase64Encoded).toEqual(false);
-      expect(res!.body).toContain("boom");
-      expect(logError).toHaveBeenCalled();
-
-      return done();
-    });
+    expect(res.statusCode).toEqual(500);
+    expect(res.isBase64Encoded).toEqual(false);
+    expect(res.body).toContain("boom");
+    expect(logError).toHaveBeenCalled();
   });
 });
