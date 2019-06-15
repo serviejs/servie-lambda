@@ -71,6 +71,7 @@ export function createHandler(app: App, options: Options = {}): Handler {
 
     const req = new LambdaRequest(url, {
       headers: event.multiValueHeaders,
+      omitDefaultHeaders: true,
       method,
       body,
       context,
